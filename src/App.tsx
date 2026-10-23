@@ -36,6 +36,7 @@ const KIND_STYLES: Record<string, string> = {
 };
 
 const TAGS: { key: string; label: string; re: RegExp }[] = [
+  { key: "limited", label: "Limited-time", re: /for a limited time/i },
   { key: "no-training", label: "No-data-training", re: /zero-retention|does not use your data/i },
   { key: "feedback", label: "Feedback period", re: /collect feedback/i },
   { key: "stealth", label: "Stealth", re: /stealth/i },
