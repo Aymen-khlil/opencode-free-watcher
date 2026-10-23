@@ -1,6 +1,6 @@
 [package]
 name = "opencode-free-watcher"
-version = "0.1.1"
+version = "0.1.2"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2024"
@@ -25,6 +25,8 @@ tauri-plugin-autostart = "2"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 regex = "1"
 tokio = { version = "1", features = ["time", "rt", "macros"] }
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

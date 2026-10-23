@@ -8,6 +8,9 @@
     "core:event:default",
     "opener:default",
     "notification:default",
-    "autostart:default"
+    "autostart:default",
+    "updater:default",
+    "process:default",
+    "process:allow-restart"
   ]
 }

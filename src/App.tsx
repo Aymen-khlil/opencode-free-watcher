@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
+import { relaunch } from "@tauri-apps/plugin-process";
+import { check } from "@tauri-apps/plugin-updater";
 import "./App.css";
 
 const DOCS_URL = "https://opencode.ai/v2/docs/console/models#free-models";
@@ -51,8 +54,7 @@ function tagLabel(key: string): string {
   return TAGS.find((t) => t.key === key)?.label ?? key;
 }
 
-function Chip({ active, onClick, label, count }: { active: boolean; onClick: () => void; label: string; count: number }) {
-  return (
+function Chip({ active, onClick, label, count }: { active: boolean; onClick: () => void; label: string; count: number }) {  return (
     <button
       onClick={onClick}
       className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
@@ -74,21 +76,55 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [banner, setBanner] = useState<string | null>(null);
   const [autostart, setAutostart] = useState(false);
+  const [appVersion, setAppVersion] = useState("");
+  const [update, setUpdate] = useState<Awaited<ReturnType<typeof check>>>(null);
+  const [updatePhase, setUpdatePhase] = useState<"idle" | "downloading" | "done">("idle");
+  const [updateError, setUpdateError] = useState<string | null>(null);
+  const [updateMsg, setUpdateMsg] = useState<string>("");
 
   const reload = useCallback(async () => {
     const s = await invoke<State>("get_state");
     setState(s);
   }, []);
 
+  const checkAppUpdate = useCallback(async (manual: boolean) => {
+    try {
+      const u = await check();
+      setUpdate(u);
+      setUpdateError(null);
+      if (manual && !u) setUpdateMsg(`You're on the latest version (${await getVersion()}).`);
+      if (u && !manual) setUpdateMsg("");
+    } catch (e) {
+      setUpdate(null);
+      if (manual) setUpdateError(String(e));
+    }
+  }, []);
+
+  const updateNow = useCallback(async () => {
+    if (!update || updatePhase !== "idle") return;
+    try {
+      setUpdateError(null);
+      setUpdatePhase("downloading");
+      await update.downloadAndInstall();
+      setUpdatePhase("done");
+      await relaunch();
+    } catch (e) {
+      setUpdateError(String(e));
+      setUpdatePhase("idle");
+    }
+  }, [update, updatePhase]);
+
   useEffect(() => {
     void reload();
+    getVersion().then(setAppVersion).catch(() => {});
+    void checkAppUpdate(false);
     isEnabled().then(setAutostart).catch(() => setAutostart(false));
     let unlisten: (() => void) | undefined;
     listen("state-changed", () => void reload()).then((fn) => (unlisten = fn));
     return () => {
       unlisten?.();
     };
-  }, [reload]);
+  }, [reload, checkAppUpdate]);
 
   async function checkNow() {
     setBusy(true);
@@ -260,6 +296,44 @@ export default function App() {
 
         {tab === "settings" && (
           <div className="flex flex-col gap-3">
+            {update ? (
+              <div className="rounded-lg border border-emerald-800 bg-emerald-500/10 p-3.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-emerald-300">Update available</div>
+                    <div className="mt-0.5 text-[11px] text-zinc-400">
+                      v{update.version} — installing replaces v{appVersion} and restarts the app.
+                    </div>
+                  </div>
+                  <button
+                    onClick={updateNow}
+                    disabled={updatePhase !== "idle"}
+                    className="shrink-0 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-emerald-500 disabled:opacity-50"
+                  >
+                    {updatePhase === "downloading" ? "Updating…" : "Update & restart"}
+                  </button>
+                </div>
+                {updateError && <p className="mt-2 text-[11px] text-rose-400">{updateError}</p>}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-3.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-zinc-200">App version</div>
+                    <div className="mt-0.5 text-[11px] text-zinc-500">
+                      {updateMsg || `v${appVersion} — updates install with one click.`}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => void checkAppUpdate(true)}
+                    className="shrink-0 rounded-md border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 transition hover:border-emerald-600 hover:text-emerald-400"
+                  >
+                    Check for updates
+                  </button>
+                </div>
+                {updateError && <p className="mt-2 text-[11px] text-rose-400">{updateError}</p>}
+              </div>
+            )}
             <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-3.5">
               <div className="flex items-center justify-between">
                 <div>
