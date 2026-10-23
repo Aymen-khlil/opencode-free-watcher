@@ -35,10 +35,41 @@ const KIND_STYLES: Record<string, string> = {
   baseline: "bg-zinc-500",
 };
 
+const TAGS: { key: string; label: string; re: RegExp }[] = [
+  { key: "no-training", label: "No-data-training", re: /zero-retention|does not use your data/i },
+  { key: "feedback", label: "Feedback period", re: /collect feedback/i },
+  { key: "stealth", label: "Stealth", re: /stealth/i },
+  { key: "region", label: "Region-limited", re: /not available in/i },
+];
+
+function tagsFor(note: string): string[] {
+  return TAGS.filter((t) => t.re.test(note)).map((t) => t.key);
+}
+
+function tagLabel(key: string): string {
+  return TAGS.find((t) => t.key === key)?.label ?? key;
+}
+
+function Chip({ active, onClick, label, count }: { active: boolean; onClick: () => void; label: string; count: number }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+        active
+          ? "border-emerald-600 bg-emerald-600/15 text-emerald-400"
+          : "border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-700 hover:text-zinc-300"
+      }`}
+    >
+      {label} <span className={active ? "text-emerald-500/70" : "text-zinc-600"}>{count}</span>
+    </button>
+  );
+}
+
 export default function App() {
   const [state, setState] = useState<State | null>(null);
   const [tab, setTab] = useState<"models" | "history" | "settings">("models");
   const [search, setSearch] = useState("");
+  const [tag, setTag] = useState<string>("All");
   const [busy, setBusy] = useState(false);
   const [banner, setBanner] = useState<string | null>(null);
   const [autostart, setAutostart] = useState(false);
@@ -98,9 +129,14 @@ export default function App() {
     }
   }
 
-  const filtered = (state?.models ?? []).filter((m) =>
-    `${m.name} ${m.id} ${m.note}`.toLowerCase().includes(search.toLowerCase()),
-  );
+  const tagCounts: Record<string, number> = {};
+  for (const m of state?.models ?? []) {
+    for (const t of tagsFor(m.note)) tagCounts[t] = (tagCounts[t] ?? 0) + 1;
+  }
+
+  const filtered = (state?.models ?? [])
+    .filter((m) => tag === "All" || tagsFor(m.note).includes(tag))
+    .filter((m) => `${m.name} ${m.id} ${m.note}`.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div className="flex h-full flex-col bg-zinc-950 font-sans text-sm text-zinc-200">
@@ -124,7 +160,16 @@ export default function App() {
       </header>
 
       {banner && (
-        <div className="border-b border-zinc-800 bg-emerald-500/10 px-4 py-2 text-xs text-emerald-300">{banner}</div>
+        <div className="flex items-center justify-between gap-2 border-b border-zinc-800 bg-emerald-500/10 px-4 py-2 text-xs text-emerald-300">
+          <span className="min-w-0 truncate">{banner}</span>
+          <button
+            onClick={() => setBanner(null)}
+            aria-label="Dismiss"
+            className="shrink-0 rounded px-1 text-zinc-500 transition hover:text-zinc-200"
+          >
+            ✕
+          </button>
+        </div>
       )}
 
       <nav className="flex border-b border-zinc-800">
@@ -148,9 +193,17 @@ export default function App() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search models…"
-              className="mb-3 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-200 placeholder-zinc-600 outline-none focus:border-emerald-600"
+              className="mb-2 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-200 placeholder-zinc-600 outline-none focus:border-emerald-600"
             />
-            {filtered.length === 0 && state && <p className="p-4 text-center text-xs text-zinc-600">No models match.</p>}
+            <div className="mb-3 flex flex-wrap gap-1.5">
+              <Chip active={tag === "All"} onClick={() => setTag("All")} label="All" count={state?.models.length ?? 0} />
+              {TAGS.map((t) =>
+                tagCounts[t.key] ? (
+                  <Chip key={t.key} active={tag === t.key} onClick={() => setTag(t.key)} label={t.label} count={tagCounts[t.key]} />
+                ) : null,
+              )}
+            </div>
+            {filtered.length === 0 && state && <p className="p-4 text-center text-xs text-zinc-600">No models match this filter.</p>}
             <ul className="flex flex-col gap-2">
               {filtered.map((m) => (
                 <li key={m.id}>
@@ -160,7 +213,12 @@ export default function App() {
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-medium text-zinc-100">{m.name}</span>
-                      <span className="flex shrink-0 items-center gap-2">
+                      <span className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+                        {tagsFor(m.note).map((t) => (
+                          <span key={t} className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400">
+                            {tagLabel(t)}
+                          </span>
+                        ))}
                         <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-400">
                           Free
                         </span>
