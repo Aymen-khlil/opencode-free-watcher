@@ -79,6 +79,7 @@ export default function App() {
   const [appVersion, setAppVersion] = useState("");
   const [update, setUpdate] = useState<Awaited<ReturnType<typeof check>>>(null);
   const [updatePhase, setUpdatePhase] = useState<"idle" | "downloading" | "done">("idle");
+  const [updateChecking, setUpdateChecking] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [updateMsg, setUpdateMsg] = useState<string>("");
 
@@ -88,7 +89,9 @@ export default function App() {
   }, []);
 
   const checkAppUpdate = useCallback(async (manual: boolean) => {
+    if (manual && updateChecking) return;
     try {
+      if (manual) setUpdateChecking(true);
       const u = await check();
       setUpdate(u);
       setUpdateError(null);
@@ -97,8 +100,10 @@ export default function App() {
     } catch (e) {
       setUpdate(null);
       if (manual) setUpdateError(String(e));
+    } finally {
+      if (manual) setUpdateChecking(false);
     }
-  }, []);
+  }, [updateChecking]);
 
   const updateNow = useCallback(async () => {
     if (!update || updatePhase !== "idle") return;
@@ -326,9 +331,10 @@ export default function App() {
                   </div>
                   <button
                     onClick={() => void checkAppUpdate(true)}
-                    className="shrink-0 rounded-md border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 transition hover:border-emerald-600 hover:text-emerald-400"
+                    disabled={updateChecking}
+                    className="shrink-0 rounded-md border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 transition hover:border-emerald-600 hover:text-emerald-400 disabled:opacity-50 disabled:hover:border-zinc-700 disabled:hover:text-zinc-300"
                   >
-                    Check for updates
+                    {updateChecking ? "Checking…" : "Check for updates"}
                   </button>
                 </div>
                 {updateError && <p className="mt-2 text-[11px] text-rose-400">{updateError}</p>}

@@ -2593,7 +2593,7 @@ dependencies = [
 
 [[package]]
 name = "opencode-free-watcher"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "regex",
  "reqwest 0.12.28",
